@@ -230,7 +230,7 @@ void RLMSetAsyncOpenQueue(dispatch_queue_t queue) {
 }
 
 static RLMAsyncOpenTask *openAsync(RLMRealmConfiguration *configuration,
-                                   void (^openCompletion)(ThreadSafeReference, std::exception_ptr)) {
+                                   void (^openCompletion)(ThreadSafeReference&&, NSError *)) {
     RLMAsyncOpenTask *ret = [RLMAsyncOpenTask new];
     dispatch_async(s_async_open_queue, ^{
         @autoreleasepool {
@@ -239,17 +239,31 @@ static RLMAsyncOpenTask *openAsync(RLMRealmConfiguration *configuration,
 #if REALM_ENABLE_SYNC
                 auto task = realm::Realm::get_synchronized_realm(std::move(config));
                 ret.task = task;
-                task->start(openCompletion);
+                task->start([openCompletion](ThreadSafeReference realm, std::exception_ptr err) {
+                    if (err) {
+                        try {
+                            std::rethrow_exception(err);
+                        }
+                        catch (...) {
+                            NSError *error;
+                            RLMRealmTranslateException(&error);
+                            return openCompletion({}, error);
+                        }
+                    }
+                    openCompletion(std::move(realm), nil);
+                });
 #else
                 @throw RLMException(@"Realm was not built with sync enabled");
 #endif
             }
             else {
                 try {
-                    openCompletion(realm::_impl::RealmCoordinator::get_coordinator(config)->get_unbound_realm(), nullptr);
+                    openCompletion(realm::_impl::RealmCoordinator::get_coordinator(config)->get_unbound_realm(), nil);
                 }
                 catch (...) {
-                    openCompletion({}, std::current_exception());
+                    NSError *error;
+                    RLMRealmTranslateException(&error);
+                    openCompletion({}, error);
                 }
             }
         }
@@ -260,20 +274,12 @@ static RLMAsyncOpenTask *openAsync(RLMRealmConfiguration *configuration,
 + (RLMAsyncOpenTask *)asyncOpenWithConfiguration:(RLMRealmConfiguration *)configuration
                                    callbackQueue:(dispatch_queue_t)callbackQueue
                                         callback:(RLMAsyncOpenRealmCallback)callback {
-    return openAsync(configuration, [=](ThreadSafeReference ref, std::exception_ptr err) {
+    return openAsync(configuration, [=](ThreadSafeReference&& ref, NSError *error) {
         @autoreleasepool {
-            if (err) {
-                try {
-                    std::rethrow_exception(err);
-                }
-                catch (...) {
-                    NSError *error;
-                    RLMRealmTranslateException(&error);
-                    dispatch_async(callbackQueue, ^{
-                        callback(nil, error);
-                    });
-                }
-                return;
+            if (error) {
+                return dispatch_async(callbackQueue, ^{
+                    callback(nil, error);
+                });
             }
             // Ensure that we keep the Realm open until we've initialized the
             // RLMRealm on the target queue. This ensures that the existing
@@ -311,22 +317,9 @@ static RLMAsyncOpenTask *openAsync(RLMRealmConfiguration *configuration,
 
 + (RLMAsyncOpenTask *)asyncOpenWithConfiguration:(RLMRealmConfiguration *)configuration
                                         callback:(void (^)(NSError *))callback {
-    return openAsync(configuration, [=](ThreadSafeReference, std::exception_ptr err) {
+    return openAsync(configuration, [=](ThreadSafeReference&&, NSError *error) {
         @autoreleasepool {
-            if (err) {
-                try {
-                    std::rethrow_exception(err);
-                }
-                catch (...) {
-                    NSError *error;
-                    RLMRealmTranslateException(&error);
-                    callback(error);
-                }
-                return;
-            }
-            @autoreleasepool {
-                callback(nil);
-            }
+            callback(error);
         }
     });
 }
@@ -357,57 +350,17 @@ REALM_NOINLINE void RLMRealmTranslateException(NSError **error) {
     try {
         throw;
     }
-    catch (RealmFileException const& ex) {
-        switch (ex.kind()) {
-            case RealmFileException::Kind::PermissionDenied:
-                RLMSetErrorOrThrow(RLMMakeError(RLMErrorFilePermissionDenied, ex), error);
-                break;
-            case RealmFileException::Kind::IncompatibleLockFile: {
-                NSString *err = @"Realm file is currently open in another process "
-                                 "which cannot share access with this process. All "
-                                 "processes sharing a single file must be the same "
-                                 "architecture. For sharing files between the Realm "
-                                 "Browser and an iOS simulator, this means that you "
-                                 "must use a 64-bit simulator.";
-                RLMSetErrorOrThrow(RLMMakeError(RLMErrorIncompatibleLockFile,
-                                                File::PermissionDenied(err.UTF8String, ex.path())), error);
-                break;
-            }
-            case RealmFileException::Kind::NotFound:
-                RLMSetErrorOrThrow(RLMMakeError(RLMErrorFileNotFound, ex), error);
-                break;
-            case RealmFileException::Kind::Exists:
-                RLMSetErrorOrThrow(RLMMakeError(RLMErrorFileExists, ex), error);
-                break;
-            case RealmFileException::Kind::BadHistoryError: {
-                NSString *err = @"Realm file's history format is incompatible with the "
-                                 "settings in the configuration object being used to open "
-                                 "the Realm. Note that Realms configured for sync cannot be "
-                                 "opened as non-synced Realms, and vice versa. Otherwise, the "
-                                 "file may be corrupt.";
-                RLMSetErrorOrThrow(RLMMakeError(RLMErrorFileAccess,
-                                                File::AccessError(err.UTF8String, ex.path())), error);
-                break;
-            }
-            case RealmFileException::Kind::AccessError:
-                RLMSetErrorOrThrow(RLMMakeError(RLMErrorFileAccess, ex), error);
-                break;
-            case RealmFileException::Kind::FormatUpgradeRequired:
-                RLMSetErrorOrThrow(RLMMakeError(RLMErrorFileFormatUpgradeRequired, ex), error);
-                break;
-            default:
-                RLMSetErrorOrThrow(RLMMakeError(RLMErrorFail, ex), error);
-                break;
-        }
-    }
     catch (AddressSpaceExhausted const &ex) {
         RLMSetErrorOrThrow(RLMMakeError(RLMErrorAddressSpaceExhausted, ex), error);
     }
     catch (SchemaMismatchException const& ex) {
         RLMSetErrorOrThrow(RLMMakeError(RLMErrorSchemaMismatch, ex), error);
     }
-    catch (DeleteOnOpenRealmException const& ex) {
-        RLMSetErrorOrThrow(RLMMakeError(RLMErrorAlreadyOpen, ex), error);
+    catch (FileAccessError const& ex) {
+        RLMSetErrorOrThrow(RLMMakeRealmFileError(ex), error);
+    }
+    catch (Exception const& ex) {
+        RLMSetErrorOrThrow(RLMMakeError(ex), error);
     }
     catch (std::system_error const& ex) {
         RLMSetErrorOrThrow(RLMMakeError(ex), error);
@@ -1146,14 +1099,14 @@ static std::shared_ptr<realm::util::Scheduler> makeScheduler(dispatch_queue_t qu
         realm::Realm::delete_files(config.path, &didDeleteAny);
         return didDeleteAny;
     }
-    catch (realm::util::File::PermissionDenied const& e) {
-        if (error) {
-            *error = [NSError errorWithDomain:NSCocoaErrorDomain code:NSFileWriteNoPermissionError
-                                     userInfo:@{NSLocalizedDescriptionKey: @(e.what()),
-                                                NSFilePathErrorKey: @(e.get_path().c_str())}];
-        }
-        return didDeleteAny;
-    }
+//    catch (realm::util::File::PermissionDenied const& e) {
+//        if (error) {
+//            *error = [NSError errorWithDomain:NSCocoaErrorDomain code:NSFileWriteNoPermissionError
+//                                     userInfo:@{NSLocalizedDescriptionKey: @(e.what()),
+//                                                NSFilePathErrorKey: @(e.get_path().c_str())}];
+//        }
+//        return didDeleteAny;
+//    }
     catch (...) {
         if (error) {
             RLMRealmTranslateException(error);

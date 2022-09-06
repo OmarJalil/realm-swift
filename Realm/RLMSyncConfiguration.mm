@@ -43,11 +43,12 @@ namespace {
 using ProtocolError = realm::sync::ProtocolError;
 
 RLMSyncSystemErrorKind errorKindForSyncError(SyncError error) {
+    auto code = error.to_status().get_std_error_code();
     if (error.is_client_reset_requested()) {
         return RLMSyncSystemErrorKindClientReset;
-    } else if (error.error_code == ProtocolError::permission_denied) {
+    } else if (code == ProtocolError::permission_denied) {
         return RLMSyncSystemErrorKindPermissionDenied;
-    } else if (error.error_code == ProtocolError::bad_authentication) {
+    } else if (code == ProtocolError::bad_authentication) {
         return RLMSyncSystemErrorKindUser;
     } else if (error.is_session_level_protocol_error()) {
         return RLMSyncSystemErrorKindSession;
@@ -267,7 +268,7 @@ NSError *RLMTranslateSyncError(SyncError error) {
             break;
     }
 
-    return make_sync_error(errorClass, @(error.message.c_str()), error.error_code.value(), custom);
+    return make_sync_error(errorClass, @(error.message.c_str()), error.code(), custom);
 }
 
 static void setDefaults(SyncConfig& config, RLMUser *user) {

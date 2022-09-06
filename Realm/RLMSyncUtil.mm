@@ -117,3 +117,15 @@ NSError *make_sync_error(std::error_code sync_error, RLMSyncSystemErrorKind kind
                                       kRLMSyncErrorStatusCodeKey: @(sync_error.value())
                                       }];
 }
+
+NSError *make_sync_error(Status status, RLMSyncSystemErrorKind kind) {
+    if (status.is_ok()) {
+        return nil;
+    }
+    return [NSError errorWithDomain:RLMSyncErrorDomain
+                               code:kind
+                           userInfo:@{
+                                      NSLocalizedDescriptionKey: @(status.reason().c_str()),
+                                      kRLMSyncErrorStatusCodeKey: @(status.code())
+                                      }];
+}

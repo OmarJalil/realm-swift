@@ -31,8 +31,8 @@
 
 namespace realm {
 class Decimal128;
+class Exception;
 class Mixed;
-class RealmFileException;
 }
 
 class RLMClassInfo;
@@ -43,11 +43,13 @@ class RLMClassInfo;
 __attribute__((format(NSString, 1, 2)))
 NSException *RLMException(NSString *fmt, ...);
 NSException *RLMException(std::exception const& exception);
+NSException *RLMException(realm::Exception const& exception);
 
-NSError *RLMMakeError(RLMError code, NSString *msg);
 NSError *RLMMakeError(RLMError code, std::exception const& exception);
-NSError *RLMMakeError(RLMError code, const realm::util::File::AccessError&);
-NSError *RLMMakeError(RLMError code, const realm::RealmFileException&);
+NSError *RLMMakeError(realm::Exception const& exception);
+NSError *RLMMakeRealmFileError(realm::FileAccessError const& exception);
+NSError *RLMMakeError(RLMError code, const realm::FileAccessError&);
+//NSError *RLMMakeError(RLMError code, const realm::RealmFileException&);
 NSError *RLMMakeError(std::system_error const& exception);
 
 void RLMSetErrorOrThrow(NSError *error, NSError **outError);

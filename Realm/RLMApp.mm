@@ -212,11 +212,22 @@ namespace {
 @end
 
 NSError *RLMAppErrorToNSError(realm::app::AppError const& appError) {
-    return [[NSError alloc] initWithDomain:@(appError.error_code.category().name())
-                                      code:appError.error_code.value()
+    auto& status = appError.to_status();
+    REALM_ASSERT(!status.is_ok());
+    int code = RLMAppErrorUnknown;
+    switch (appError.code()) {
+        case realm::ErrorCodes::Error::BadRequest: code = RLMAppErrorBadRequest; break;
+        case realm::ErrorCodes::Error::InvalidSession: code = RLMAppErrorInvalidSession; break;
+        case realm::ErrorCodes::Error::UserNotFound: code = RLMAppErrorUserNotFound; break;
+        default: break;
+    }
+    return [[NSError alloc] initWithDomain:@"IIAM"
+                                      code:code
                                   userInfo:@{
-                                      @(appError.error_code.category().name()) : @(appError.error_code.message().data()),
-                                      NSLocalizedDescriptionKey : @(appError.message.c_str())
+//                                      @(appError.error_code.category().name()): @(appError.error_code.message().data()),
+                                      NSLocalizedDescriptionKey: @(appError.what()),
+                                      @"Underlying Error": @(appError.what()),
+                                      @"ServerLogURL": @(appError.link_to_server_logs.c_str())
                                   }];
 }
 
@@ -351,7 +362,7 @@ static std::mutex& s_appMutex = *new std::mutex();
 - (void)loginWithCredential:(RLMCredentials *)credentials
                  completion:(RLMUserCompletionBlock)completionHandler {
     auto completion = ^(std::shared_ptr<SyncUser> user, std::optional<app::AppError> error) {
-        if (error && error->error_code) {
+        if (error) {
             return completionHandler(nil, RLMAppErrorToNSError(*error));
         }
 

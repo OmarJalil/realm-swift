@@ -251,7 +251,7 @@ using namespace realm;
                      completion:(RLMOptionalUserBlock)completion {
     _app._realmApp->link_user(_user, credentials.appCredentials,
                    ^(std::shared_ptr<SyncUser> user, std::optional<app::AppError> error) {
-        if (error && error->error_code) {
+        if (error) {
             return completion(nil, RLMAppErrorToNSError(*error));
         }
 
@@ -307,7 +307,7 @@ using namespace realm;
 
 - (void)handleResponse:(std::optional<realm::app::AppError>)error
             completion:(RLMOptionalErrorBlock)completion {
-    if (error && error->error_code) {
+    if (error) {
         return completion(RLMAppErrorToNSError(*error));
     }
     completion(nil);

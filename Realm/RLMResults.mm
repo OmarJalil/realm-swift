@@ -80,32 +80,32 @@ void RLMThrowResultsError(NSString *aggregateMethod) {
     try {
         throw;
     }
-    catch (realm::InvalidTransactionException const&) {
+    catch (realm::WrongTransactionState const&) {
         @throw RLMException(@"Cannot modify Results outside of a write transaction.");
     }
-    catch (realm::IncorrectThreadException const&) {
-        @throw RLMException(@"Realm accessed from incorrect thread.");
-    }
-    catch (realm::Results::InvalidatedException const&) {
-        @throw RLMException(@"RLMResults has been invalidated.");
-    }
-    catch (realm::Results::DetatchedAccessorException const&) {
-        @throw RLMException(@"Object has been invalidated.");
-    }
-    catch (realm::Results::IncorrectTableException const& e) {
-        @throw RLMException(@"Object of type '%s' does not match RLMResults type '%s'.",
-                            e.actual.data(), e.expected.data());
-    }
-    catch (realm::Results::OutOfBoundsIndexException const& e) {
+    catch (realm::OutOfBounds const& e) {
         @throw RLMException(@"Index %zu is out of bounds (must be less than %zu).",
-                            e.requested, e.valid_count);
+                            e.index, e.size);
     }
-    catch (realm::Results::UnsupportedColumnTypeException const& e) {
-        @throw RLMException(@"%@ is not supported for %s%s property '%s'.",
-                            aggregateMethod,
-                            string_for_property_type(e.property_type),
-                            is_nullable(e.property_type) ? "?" : "",
-                            e.column_name.data());
+//    catch (realm::Results::InvalidatedException const&) {
+//        @throw RLMException(@"RLMResults has been invalidated.");
+//    }
+//    catch (realm::Results::DetatchedAccessorException const&) {
+//        @throw RLMException(@"Object has been invalidated.");
+//    }
+//    catch (realm::Results::IncorrectTableException const& e) {
+//        @throw RLMException(@"Object of type '%s' does not match RLMResults type '%s'.",
+//                            e.actual.data(), e.expected.data());
+//    }
+//    catch (realm::Results::UnsupportedColumnTypeException const& e) {
+//        @throw RLMException(@"%@ is not supported for %s%s property '%s'.",
+//                            aggregateMethod,
+//                            string_for_property_type(e.property_type),
+//                            is_nullable(e.property_type) ? "?" : "",
+//                            e.column_name.data());
+//    }
+    catch (realm::Exception const& e) {
+        @throw RLMException(e);
     }
     catch (std::exception const& e) {
         @throw RLMException(e);

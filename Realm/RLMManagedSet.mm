@@ -130,31 +130,14 @@ static void throwError(__unsafe_unretained RLMManagedSet *const ar, NSString *ag
     try {
         throw;
     }
-    catch (realm::InvalidTransactionException const&) {
+    catch (realm::WrongTransactionState const&) {
         @throw RLMException(@"Cannot modify managed RLMSet outside of a write transaction.");
-    }
-    catch (realm::IncorrectThreadException const&) {
-        @throw RLMException(@"Realm accessed from incorrect thread.");
-    }
-    catch (realm::object_store::Set::InvalidatedException const&) {
-        @throw RLMException(@"RLMSet has been invalidated or the containing object has been deleted.");
     }
     catch (realm::object_store::Set::InvalidEmbeddedOperationException const&) {
         @throw RLMException(@"Cannot add an embedded object to an RLMSet.");
     }
-    catch (realm::Results::UnsupportedColumnTypeException const& e) {
-        if (ar->_backingSet.get_type() == realm::PropertyType::Object) {
-            @throw RLMException(@"%@: is not supported for %s%s property '%s'.",
-                                aggregateMethod,
-                                string_for_property_type(e.property_type),
-                                is_nullable(e.property_type) ? "?" : "",
-                                e.column_name.data());
-        }
-        @throw RLMException(@"%@: is not supported for %s%s set '%@.%@'.",
-                            aggregateMethod,
-                            string_for_property_type(e.property_type),
-                            is_nullable(e.property_type) ? "?" : "",
-                            ar->_ownerInfo->rlmObjectSchema.className, ar->_key);
+    catch (realm::Exception const& e) {
+        @throw RLMException(e);
     }
     catch (std::logic_error const& e) {
         @throw RLMException(e);

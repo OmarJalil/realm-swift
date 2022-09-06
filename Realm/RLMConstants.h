@@ -90,6 +90,8 @@ extern NSString * const RLMErrorDomain;
 /** An error domain identifying non-specific system errors. */
 extern NSString * const RLMUnknownSystemErrorDomain;
 
+extern NSString * const RLMGenericErrorDomain;
+
 /**
  `RLMError` is an enumeration representing all recoverable errors. It is associated with the
  Realm error domain specified in `RLMErrorDomain`.

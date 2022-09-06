@@ -218,25 +218,28 @@ static void throwError(__unsafe_unretained RLMManagedDictionary *const dict, NSS
     try {
         throw;
     }
-    catch (realm::InvalidTransactionException const&) {
+    catch (realm::WrongTransactionState const&) {
         @throw RLMException(@"Cannot modify managed RLMDictionary outside of a write transaction.");
     }
-    catch (realm::IncorrectThreadException const&) {
-        @throw RLMException(@"Realm accessed from incorrect thread.");
-    }
-    catch (realm::Results::UnsupportedColumnTypeException const& e) {
-        if (dict->_backingCollection.get_type() == realm::PropertyType::Object) {
-            @throw RLMException(@"%@: is not supported for %s%s property '%s'.",
-                                aggregateMethod,
-                                string_for_property_type(e.property_type),
-                                dict->_optional ? "?" : "",
-                                e.column_name.data());
-        }
-        @throw RLMException(@"%@: is not supported for %s%s dictionary '%@.%@'.",
-                            aggregateMethod,
-                            string_for_property_type(e.property_type),
-                            dict->_optional ? "?" : "",
-                            dict->_ownerInfo->rlmObjectSchema.className, dict->_key);
+//    catch (realm::IncorrectThreadException const&) {
+//        @throw RLMException(@"Realm accessed from incorrect thread.");
+//    }
+//    catch (realm::Results::UnsupportedColumnTypeException const& e) {
+//        if (dict->_backingCollection.get_type() == realm::PropertyType::Object) {
+//            @throw RLMException(@"%@: is not supported for %s%s property '%s'.",
+//                                aggregateMethod,
+//                                string_for_property_type(e.property_type),
+//                                dict->_optional ? "?" : "",
+//                                e.column_name.data());
+//        }
+//        @throw RLMException(@"%@: is not supported for %s%s dictionary '%@.%@'.",
+//                            aggregateMethod,
+//                            string_for_property_type(e.property_type),
+//                            dict->_optional ? "?" : "",
+//                            dict->_ownerInfo->rlmObjectSchema.className, dict->_key);
+//    }
+    catch (realm::Exception const& e) {
+        @throw RLMException(e);
     }
     catch (std::logic_error const& e) {
         @throw RLMException(e);

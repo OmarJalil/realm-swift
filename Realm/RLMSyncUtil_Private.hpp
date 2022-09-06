@@ -28,6 +28,7 @@ class CocoaSyncUserContext;
 
 namespace realm {
 enum class AccessLevel;
+class Status;
 }
 
 realm::SyncSessionStopPolicy translateStopPolicy(RLMSyncStopPolicy stopPolicy);
@@ -52,3 +53,4 @@ NSError *make_auth_error(RLMSyncErrorResponseModel *responseModel);
 NSError *make_sync_error(RLMSyncSystemErrorKind kind, NSString *description, NSInteger code, NSDictionary *custom);
 NSError *make_sync_error(NSError *wrapped_auth_error);
 NSError *make_sync_error(std::error_code, RLMSyncSystemErrorKind kind=RLMSyncSystemErrorKindSession);
+NSError *make_sync_error(realm::Status, RLMSyncSystemErrorKind kind=RLMSyncSystemErrorKindSession);

@@ -38,7 +38,7 @@ static std::function<void(realm::app::App::UserAPIKey,
 wrapAPIKeyCompletion(RLMOptionalUserAPIKeyBlock completion) {
     return [completion](realm::app::App::UserAPIKey userAPIKey,
              std::optional<realm::app::AppError> error) {
-        if (error && error->error_code) {
+        if (error) {
             return completion(nil, RLMAppErrorToNSError(*error));
         }
         return completion([[RLMUserAPIKey alloc] initWithUserAPIKey:userAPIKey], nil);
@@ -61,7 +61,7 @@ wrapAPIKeyCompletion(RLMOptionalUserAPIKeyBlock completion) {
     self.client.fetch_api_keys(self.currentUser,
                                ^(const std::vector<realm::app::App::UserAPIKey>& userAPIKeys,
                                  std::optional<realm::app::AppError> error) {
-        if (error && error->error_code) {
+        if (error) {
             return completion(nil, RLMAppErrorToNSError(*error));
         }
         

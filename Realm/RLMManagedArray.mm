@@ -132,32 +132,15 @@ static void throwError(__unsafe_unretained RLMManagedArray *const ar, NSString *
     try {
         throw;
     }
-    catch (realm::InvalidTransactionException const&) {
+    catch (realm::WrongTransactionState const&) {
         @throw RLMException(@"Cannot modify managed RLMArray outside of a write transaction.");
     }
-    catch (realm::IncorrectThreadException const&) {
-        @throw RLMException(@"Realm accessed from incorrect thread.");
-    }
-    catch (realm::List::InvalidatedException const&) {
-        @throw RLMException(@"RLMArray has been invalidated or the containing object has been deleted.");
-    }
-    catch (realm::List::OutOfBoundsIndexException const& e) {
+    catch (realm::OutOfBounds const& e) {
         @throw RLMException(@"Index %zu is out of bounds (must be less than %zu).",
-                            e.requested, e.valid_count);
+                            e.index, e.size);
     }
-    catch (realm::Results::UnsupportedColumnTypeException const& e) {
-        if (ar->_backingList.get_type() == realm::PropertyType::Object) {
-            @throw RLMException(@"%@: is not supported for %s%s property '%s'.",
-                                aggregateMethod,
-                                string_for_property_type(e.property_type),
-                                is_nullable(e.property_type) ? "?" : "",
-                                e.column_name.data());
-        }
-        @throw RLMException(@"%@: is not supported for %s%s array '%@.%@'.",
-                            aggregateMethod,
-                            string_for_property_type(e.property_type),
-                            isNullable(e.property_type) ? "?" : "",
-                            ar->_ownerInfo->rlmObjectSchema.className, ar->_key);
+    catch (realm::Exception const& e) {
+        @throw RLMException(e);
     }
     catch (std::logic_error const& e) {
         @throw RLMException(e);

@@ -35,7 +35,7 @@
 std::function<void(std::optional<realm::app::AppError>)>
 RLMWrapCompletion(RLMProviderClientOptionalErrorBlock completion) {
     return [completion](std::optional<realm::app::AppError> error) {
-        if (error && error->error_code) {
+        if (error) {
             return completion(RLMAppErrorToNSError(*error));
         }
         completion(nil);

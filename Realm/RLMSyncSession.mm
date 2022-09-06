@@ -174,8 +174,8 @@ static RLMSyncConnectionState convertConnectionState(SyncSession::ConnectionStat
 - (BOOL)waitForUploadCompletionOnQueue:(dispatch_queue_t)queue callback:(void(^)(NSError *))callback {
     if (auto session = _session.lock()) {
         queue = queue ?: dispatch_get_main_queue();
-        session->wait_for_upload_completion([=](std::error_code err) {
-            NSError *error = (err == std::error_code{}) ? nil : make_sync_error(err);
+        session->wait_for_upload_completion([=](Status status) {
+            NSError *error = make_sync_error(status);
             dispatch_async(queue, ^{
                 callback(error);
             });
@@ -188,8 +188,8 @@ static RLMSyncConnectionState convertConnectionState(SyncSession::ConnectionStat
 - (BOOL)waitForDownloadCompletionOnQueue:(dispatch_queue_t)queue callback:(void(^)(NSError *))callback {
     if (auto session = _session.lock()) {
         queue = queue ?: dispatch_get_main_queue();
-        session->wait_for_download_completion([=](std::error_code err) {
-            NSError *error = (err == std::error_code{}) ? nil : make_sync_error(err);
+        session->wait_for_download_completion([=](Status status) {
+            NSError *error = make_sync_error(status);
             dispatch_async(queue, ^{
                 callback(error);
             });

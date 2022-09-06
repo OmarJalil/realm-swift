@@ -348,10 +348,22 @@ NSException *RLMException(std::exception const& exception) {
     return RLMException(@"%s", exception.what());
 }
 
+NSException *RLMException(realm::Exception const& exception) {
+    return RLMException(@(exception.what()), @{@"Error Code": @(exception.code())});
+}
+
 NSError *RLMMakeError(RLMError code, NSString *msg) {
     return [NSError errorWithDomain:RLMErrorDomain
                                code:code
                            userInfo:@{NSLocalizedDescriptionKey: msg,
+                                      @"Error Code": @(code)}];
+}
+
+NSError *RLMMakeError(RLMError code, NSString *msg, NSString *path) {
+    return [NSError errorWithDomain:RLMErrorDomain
+                               code:code
+                           userInfo:@{NSLocalizedDescriptionKey: msg,
+                                      NSFilePathErrorKey: path,
                                       @"Error Code": @(code)}];
 }
 
@@ -362,7 +374,7 @@ NSError *RLMMakeError(RLMError code, std::exception const& exception) {
                                       @"Error Code": @(code)}];
 }
 
-NSError *RLMMakeError(RLMError code, const realm::util::File::AccessError& exception) {
+NSError *RLMMakeError(RLMError code, const realm::FileAccessError& exception) {
     return [NSError errorWithDomain:RLMErrorDomain
                                code:code
                            userInfo:@{NSLocalizedDescriptionKey: @(exception.what()),
@@ -370,14 +382,41 @@ NSError *RLMMakeError(RLMError code, const realm::util::File::AccessError& excep
                                       @"Error Code": @(code)}];
 }
 
-NSError *RLMMakeError(RLMError code, const realm::RealmFileException& exception) {
-    NSString *underlying = @(exception.underlying().c_str());
-    return [NSError errorWithDomain:RLMErrorDomain
-                               code:code
+NSError *RLMMakeError(const realm::Exception& exception) {
+    return [NSError errorWithDomain:RLMErrorDomain // FIXME
+                               code:exception.code()
                            userInfo:@{NSLocalizedDescriptionKey: @(exception.what()),
-                                      NSFilePathErrorKey: @(exception.path().c_str()),
-                                      @"Error Code": @(code),
-                                      @"Underlying": underlying.length == 0 ? @"n/a" : underlying}];
+                                      @"Error Code": @(exception.code())}];
+}
+
+//NSError *RLMMakeError(RLMError code, const realm::RealmFileException& exception) {
+//    NSString *underlying = @(exception.underlying().c_str());
+//    return [NSError errorWithDomain:RLMErrorDomain
+//                               code:code
+//                           userInfo:@{NSLocalizedDescriptionKey: @(exception.what()),
+//                                      NSFilePathErrorKey: @(exception.path().c_str()),
+//                                      @"Error Code": @(code),
+//                                      @"Underlying": underlying.length == 0 ? @"n/a" : underlying}];
+//}
+
+static RLMError translateFileError(realm::ErrorCodes::Error code) {
+    using enum realm::ErrorCodes::Error;
+    switch (code) {
+        case PermissionDenied: return RLMErrorFilePermissionDenied;
+        case FileNotFound: return RLMErrorFileNotFound;
+        case FileAlreadyExists: return RLMErrorFileExists;
+        case FileFormatUpgradeRequired: return RLMErrorFileFormatUpgradeRequired;
+        case IncompatibleLockFile: return RLMErrorIncompatibleLockFile;
+        case DeleteOnOpenRealm: return RLMErrorAlreadyOpen;
+        default: return RLMErrorFail;
+    }
+//            case RealmFileException::Kind::AccessError:
+//                RLMSetErrorOrThrow(RLMMakeError(RLMErrorFileAccess, ex), error);
+//                break;
+}
+
+NSError *RLMMakeRealmFileError(const realm::FileAccessError& ex) {
+    return RLMMakeError(translateFileError(ex.code()), @(ex.what()), @(ex.get_path().c_str()));
 }
 
 NSError *RLMMakeError(std::system_error const& exception) {
@@ -409,9 +448,9 @@ void RLMSetErrorOrThrow(NSError *error, NSError **outError) {
     }
     else {
         NSString *msg = error.localizedDescription;
-        if (error.userInfo[NSFilePathErrorKey]) {
-            msg = [NSString stringWithFormat:@"%@: %@", error.userInfo[NSFilePathErrorKey], error.localizedDescription];
-        }
+//        if (error.userInfo[NSFilePathErrorKey]) {
+//            msg = [NSString stringWithFormat:@"%@: %@", error.userInfo[NSFilePathErrorKey], error.localizedDescription];
+//        }
         @throw RLMException(msg, @{NSUnderlyingErrorKey: error});
     }
 }

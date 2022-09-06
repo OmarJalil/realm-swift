@@ -22,6 +22,7 @@ RLMNotification const RLMRealmRefreshRequiredNotification = @"RLMRealmRefreshReq
 RLMNotification const RLMRealmDidChangeNotification = @"RLMRealmDidChangeNotification";
 
 NSString * const RLMErrorDomain = @"io.realm";
+NSString * const RLMGenericErrorDomain = @"io.realm.core";
 
 NSString * const RLMUnknownSystemErrorDomain = @"io.realm.unknown";
 
