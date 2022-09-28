@@ -211,6 +211,10 @@
     return nil;
 }
 
++ (NSDictionary *)propertiesMapping {
+    return @{};
+}
+
 + (NSArray *)requiredProperties {
     return @[];
 }

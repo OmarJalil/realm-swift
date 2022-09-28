@@ -4,12 +4,32 @@ x.y.z Release notes (yyyy-MM-dd)
 The prebuilt binary for Carthage is now build with Xcode 14.0.1.
 
 ### Enhancements
-* None.
+* Add custom column names API, which allows to set a different column name in the realm 
+  from the one used in your object declaration.
+  ```swift
+  class Person: Object {
+      @Persisted var firtName: String
+      @Persisted var birthDate: Date
+      @Persisted var age: Int
+      
+      override class public func propertiesMapping() -> [String : String] {
+          ["firtName"; "first_name",
+           "lastName"; "last_name"]
+      }
+  }
+  ```
+  This is very helpful in cases where you want to name a property differently 
+  from your `Device Sync` JSON schema.
+  This API is only available for old and modern object declaration syntax on the
+  `RealmSwift` SDK.
 
 ### Fixed
 * Setting a `List` property with `Results` no longer throws an unrecognized selector exception (since 10.8.0-beta.2)
 
-<!-- ### Breaking Changes - ONLY INCLUDE FOR NEW MAJOR version -->
+### Breaking Changes
+* Private API `_realmColumnNames` has been renamed to a new public API
+  called `propertiesMapping()`. This change only affects the Swift API 
+  and doesn't have any effects in the obj-c API.
 
 ### Compatibility
 * Realm Studio: 11.0.0 or later.

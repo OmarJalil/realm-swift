@@ -1926,6 +1926,65 @@ class SwiftObjectServerTests: SwiftSyncTestCase {
         }
         XCTAssertTrue(didFail)
     }
+
+    func testServerSchemaValidationWithCustomColumnNames() throws {
+        let appId = try RealmServer.shared.createApp()
+        let className = "SwiftCustomColumnObject"
+        RealmServer.shared.retrieveSchemaProperties(appId, className: className) { result in
+            switch result {
+            case .failure:
+                XCTFail("Couldn't retrieve schema properties for \(className)")
+            case .success(let properties):
+                for (_, value) in customColumnPropertiesMapping {
+                    XCTAssertTrue(properties.contains(where: { $0 == value }))
+                }
+            }
+        }
+    }
+
+    func testVerifyDocumentsWithCustomColumnNames() throws {
+        let collection = try setupMongoCollection(for: "SwiftCustomColumnObject")
+        let objectId = ObjectId.generate()
+        let linkedObjectId = ObjectId.generate()
+
+        let user1 = try logInUser(for: basicCredentials())
+        var config1 = user1.configuration(partitionValue: #function)
+        config1.objectTypes = [SwiftCustomColumnObject.self]
+        let realm = try openRealm(configuration: config1)
+        try realm.write {
+            let object = SwiftCustomColumnObject()
+            object.id = objectId
+            let linkedObject = SwiftCustomColumnObject()
+            linkedObject.id = linkedObjectId
+            object.objectCol = linkedObject
+            realm.add(object)
+        }
+        waitForUploads(for: realm)
+
+        let waitStart = Date()
+        while collection.count(filter: [:]).await(self) != 2 && waitStart.timeIntervalSinceNow > -600.0 {
+            sleep(5)
+        }
+        XCTAssertEqual(collection.count(filter: [:]).await(self), 2)
+
+        let filter: Document = ["_id": .objectId(objectId)]
+        collection.findOneDocument(filter: filter)
+            .await(self) { document in
+                XCTAssertNotNil(document)
+                XCTAssertEqual(document?["_id"]??.objectIdValue, objectId)
+                XCTAssertNil(document?["id"] as Any?)
+                XCTAssertEqual(document?["custom_boolCol"]??.boolValue, true)
+                XCTAssertNil(document?["boolCol"] as Any?)
+                XCTAssertEqual(document?["custom_intCol"]??.int64Value, 1)
+                XCTAssertNil(document?["intCol"] as Any?)
+                XCTAssertEqual(document?["custom_stringCol"]??.stringValue, "string")
+                XCTAssertNil(document?["stringCol"] as Any?)
+                XCTAssertEqual(document?["custom_decimalCol"]??.decimal128Value, Decimal128(1))
+                XCTAssertNil(document?["decimalCol"] as Any?)
+                XCTAssertEqual(document?["custom_objectCol"]??.objectIdValue, linkedObjectId)
+                XCTAssertNil(document?["objectCol"] as Any?)
+            }
+    }
 }
 
 class AnyRealmValueSyncTests: SwiftSyncTestCase {
@@ -1996,7 +2055,7 @@ func hasCombine() -> Bool {
 }
 
 @available(OSX 10.15, watchOS 6.0, iOS 13.0, iOSApplicationExtension 13.0, OSXApplicationExtension 10.15, tvOS 13.0, *)
-extension Publisher {
+public extension Publisher {
     func expectValue(_ testCase: XCTestCase, _ expectation: XCTestExpectation, receiveValue: ((Self.Output) -> Void)? = nil) -> AnyCancellable {
         return self.sink(receiveCompletion: { result in
             if case .failure(let error) = result {
@@ -2059,22 +2118,13 @@ class CombineObjectServerTests: SwiftSyncTestCase {
         super.tearDown()
     }
 
-    func setupMongoCollection() throws -> MongoCollection {
-        let user = try logInUser(for: basicCredentials())
-        let mongoClient = user.mongoClient("mongodb1")
-        let database = mongoClient.database(named: "test_data")
-        let collection = database.collection(withName: "Dog")
-        removeAllFromCollection(collection)
-        return collection
-    }
-
     // swiftlint:disable multiple_closures_with_trailing_closure
     func testWatchCombine() throws {
         let sema = DispatchSemaphore(value: 0)
         let sema2 = DispatchSemaphore(value: 0)
         let openSema = DispatchSemaphore(value: 0)
         let openSema2 = DispatchSemaphore(value: 0)
-        let collection = try setupMongoCollection()
+        let collection = try setupMongoCollection(for: "Dog")
         let document: Document = ["name": "fido", "breed": "cane corso"]
 
         let watchEx1 = expectation(description: "Watch 3 document events")
@@ -2130,7 +2180,7 @@ class CombineObjectServerTests: SwiftSyncTestCase {
         let sema2 = DispatchSemaphore(value: 0)
         let openSema1 = DispatchSemaphore(value: 0)
         let openSema2 = DispatchSemaphore(value: 0)
-        let collection = try setupMongoCollection()
+        let collection = try setupMongoCollection(for: "Dog")
         let document: Document = ["name": "fido", "breed": "cane corso"]
         let document2: Document = ["name": "rex", "breed": "cane corso"]
         let document3: Document = ["name": "john", "breed": "cane corso"]
@@ -2225,7 +2275,7 @@ class CombineObjectServerTests: SwiftSyncTestCase {
         let sema2 = DispatchSemaphore(value: 0)
         let openSema1 = DispatchSemaphore(value: 0)
         let openSema2 = DispatchSemaphore(value: 0)
-        let collection = try setupMongoCollection()
+        let collection = try setupMongoCollection(for: "Dog")
         let document: Document = ["name": "fido", "breed": "cane corso"]
         let document2: Document = ["name": "rex", "breed": "cane corso"]
         let document3: Document = ["name": "john", "breed": "cane corso"]
@@ -2480,7 +2530,7 @@ class CombineObjectServerTests: SwiftSyncTestCase {
     }
 
     func testMongoCollectionInsertCombine() throws {
-        let collection = try setupMongoCollection()
+        let collection = try setupMongoCollection(for: "Dog")
         let document: Document = ["name": "fido", "breed": "cane corso"]
         let document2: Document = ["name": "rex", "breed": "tibetan mastiff"]
 
@@ -2496,7 +2546,7 @@ class CombineObjectServerTests: SwiftSyncTestCase {
     }
 
     func testMongoCollectionFindCombine() throws {
-        let collection = try setupMongoCollection()
+        let collection = try setupMongoCollection(for: "Dog")
         let document: Document = ["name": "fido", "breed": "cane corso"]
         let document2: Document = ["name": "rex", "breed": "tibetan mastiff"]
         let document3: Document = ["name": "rex", "breed": "tibetan mastiff", "coat": ["fawn", "brown", "white"]]
@@ -2526,7 +2576,7 @@ class CombineObjectServerTests: SwiftSyncTestCase {
     }
 
     func testMongoCollectionCountAndAggregateCombine() throws {
-        let collection = try setupMongoCollection()
+        let collection = try setupMongoCollection(for: "Dog")
         let document: Document = ["name": "fido", "breed": "cane corso"]
 
         collection.insertMany([document]).await(self)
@@ -2541,7 +2591,7 @@ class CombineObjectServerTests: SwiftSyncTestCase {
     }
 
     func testMongoCollectionDeleteOneCombine() throws {
-        let collection = try setupMongoCollection()
+        let collection = try setupMongoCollection(for: "Dog")
         let document: Document = ["name": "fido", "breed": "cane corso"]
         let document2: Document = ["name": "rex", "breed": "cane corso"]
 
@@ -2555,7 +2605,7 @@ class CombineObjectServerTests: SwiftSyncTestCase {
     }
 
     func testMongoCollectionDeleteManyCombine() throws {
-        let collection = try setupMongoCollection()
+        let collection = try setupMongoCollection(for: "Dog")
         let document: Document = ["name": "fido", "breed": "cane corso"]
         let document2: Document = ["name": "rex", "breed": "cane corso"]
 
@@ -2569,7 +2619,7 @@ class CombineObjectServerTests: SwiftSyncTestCase {
     }
 
     func testMongoCollectionUpdateOneCombine() throws {
-        let collection = try setupMongoCollection()
+        let collection = try setupMongoCollection(for: "Dog")
         let document: Document = ["name": "fido", "breed": "cane corso"]
         let document2: Document = ["name": "rex", "breed": "cane corso"]
         let document3: Document = ["name": "john", "breed": "cane corso"]
@@ -2591,7 +2641,7 @@ class CombineObjectServerTests: SwiftSyncTestCase {
     }
 
     func testMongoCollectionUpdateManyCombine() throws {
-        let collection = try setupMongoCollection()
+        let collection = try setupMongoCollection(for: "Dog")
         let document: Document = ["name": "fido", "breed": "cane corso"]
         let document2: Document = ["name": "rex", "breed": "cane corso"]
         let document3: Document = ["name": "john", "breed": "cane corso"]
@@ -2612,7 +2662,7 @@ class CombineObjectServerTests: SwiftSyncTestCase {
     }
 
     func testMongoCollectionFindAndUpdateCombine() throws {
-        let collection = try setupMongoCollection()
+        let collection = try setupMongoCollection(for: "Dog")
         let document: Document = ["name": "fido", "breed": "cane corso"]
         let document2: Document = ["name": "rex", "breed": "cane corso"]
         let document3: Document = ["name": "john", "breed": "cane corso"]
@@ -2639,7 +2689,7 @@ class CombineObjectServerTests: SwiftSyncTestCase {
     }
 
     func testMongoCollectionFindAndReplaceCombine() throws {
-        let collection = try setupMongoCollection()
+        let collection = try setupMongoCollection(for: "Dog")
         let document: Document = ["name": "fido", "breed": "cane corso"]
         let document2: Document = ["name": "rex", "breed": "cane corso"]
         let document3: Document = ["name": "john", "breed": "cane corso"]
@@ -2664,7 +2714,7 @@ class CombineObjectServerTests: SwiftSyncTestCase {
     }
 
     func testMongoCollectionFindAndDeleteCombine() throws {
-        let collection = try setupMongoCollection()
+        let collection = try setupMongoCollection(for: "Dog")
         let document: Document = ["name": "fido", "breed": "cane corso"]
         collection.insertMany([document]).await(self)
 
@@ -2889,6 +2939,45 @@ class AsyncAwaitObjectServerTests: SwiftSyncTestCase {
         let realm3 = try await Realm(configuration: user2.configuration(testName: #function),
                                      downloadBeforeOpen: .always)
         XCTAssertEqual(realm3.objects(SwiftHugeSyncObject.self).count, 4)
+    }
+
+    @MainActor func testDownloadPBSRealmCustomColumnNames() async throws {
+        // Populate the Realm on the server
+        let user1 = try await self.app.login(credentials: basicCredentials())
+        let realm1 = try await Realm(configuration: user1.configuration(testName: #function))
+        let objectId = ObjectId.generate()
+        let linkedObjectId = ObjectId.generate()
+        try realm1.write {
+            let object = SwiftCustomColumnObject()
+            object.id = objectId
+            object.binaryCol = "string".data(using: String.Encoding.utf8)!
+            let linkedObject = SwiftCustomColumnObject()
+            linkedObject.id = linkedObjectId
+            object.objectCol = linkedObject
+            realm1.add(object)
+        }
+        waitForUploads(for: realm1)
+
+        // Should have the objects
+        let user2 = try await app.login(credentials: .anonymous)
+        let realm2 = try await Realm(configuration: user2.configuration(testName: #function),
+                                     downloadBeforeOpen: .once)
+        XCTAssertEqual(realm2.objects(SwiftCustomColumnObject.self).count, 2)
+
+        let object = realm2.object(ofType: SwiftCustomColumnObject.self, forPrimaryKey: objectId)
+        XCTAssertNotNil(object)
+        XCTAssertEqual(object!.id, objectId)
+        XCTAssertEqual(object!.boolCol, true)
+        XCTAssertEqual(object!.intCol, 1)
+        XCTAssertEqual(object!.doubleCol, 1.1)
+        XCTAssertEqual(object!.stringCol, "string")
+        XCTAssertEqual(object!.binaryCol, "string".data(using: String.Encoding.utf8)!)
+        XCTAssertEqual(object!.dateCol, Date(timeIntervalSince1970: -1))
+        XCTAssertEqual(object!.longCol, 1)
+        XCTAssertEqual(object!.decimalCol, Decimal128(1))
+        XCTAssertEqual(object!.uuidCol, UUID(uuidString: "85d4fbee-6ec6-47df-bfa1-615931903d7e")!)
+        XCTAssertNil(object?.objectIdCol)
+        XCTAssertEqual(object!.objectCol!.id, linkedObjectId)
     }
 
     func testCallResetPasswordAsyncAwait() async throws {

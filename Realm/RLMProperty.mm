@@ -722,6 +722,10 @@ static std::optional<RLMPropertyType> typeFromProtocolString(const char *type) {
 - (realm::Property)objectStoreCopy:(RLMSchema *)schema {
     realm::Property p;
     p.name = self.columnName.UTF8String;
+    // We are not setting in anyway the public_name property on core, which later could be used to retrieve info
+    if (self.columnName != _name) {
+        p.public_name = _name.UTF8String;
+    }
     if (_objectClassName) {
         RLMObjectSchema *targetSchema = schema[_objectClassName];
         p.object_type = (targetSchema.objectName ?: _objectClassName).UTF8String;
